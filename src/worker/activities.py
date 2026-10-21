@@ -1,7 +1,7 @@
 import logging
-import httpx
 from datetime import datetime
 from temporalio import activity
+from python_shared.http import ResilientHttpClient
 from features.forecast.service import ForecastService
 from shared.ports.clickhouse_port import ClickHousePort
 from shared.ports.postgres_port import PostgresPort
@@ -27,6 +27,11 @@ class ForecastActivities:
         self.timesfm = timesfm
         self.alert_publisher = alert_publisher
         self.sdk_url = sdk_url
+        self._client: ResilientHttpClient = ResilientHttpClient(
+            base_url=self.sdk_url,
+            timeout=5.0,
+            profile="temporal_worker",
+        )
 
     @activity.defn(name="fetch_cost_series")
     async def fetch_cost_series(self, lookback_hours: int, min_history_hours: int) -> dict:
@@ -84,12 +89,11 @@ class ForecastActivities:
             "p90": int(p90),
             "model": model,
             "provider": "unknown",
-            "service_name": service
+            "service_name": service,
         }
         try:
-            async with httpx.AsyncClient() as client:
-                resp = await client.post(url, json=payload, timeout=5.0)
-                resp.raise_for_status()
+            resp = await self._client.apost("/v1/metrics/forecast", json=payload)
+            resp.raise_for_status()
         except Exception as e:
             logger.warning("Failed to push forecast to SDK API: %s", e)
 

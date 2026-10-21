@@ -6,6 +6,7 @@ from fastapi import FastAPI
 from prometheus_client import make_asgi_app
 from python_shared.discovery import ServiceRegistryManager, ServiceRegistryManagerOptions
 
+from python_shared.http.middleware.correlation_middleware import CorrelationAndTelemetryMiddleware
 from api.rest.v1.router import router
 
 @asynccontextmanager
@@ -35,6 +36,7 @@ def create_app() -> FastAPI:
         version="1.0.0",
         lifespan=lifespan,
     )
+    app.add_middleware(CorrelationAndTelemetryMiddleware)
     app.mount("/metrics", make_asgi_app())
     app.include_router(router)
     return app
